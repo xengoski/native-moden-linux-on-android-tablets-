@@ -1,0 +1,21 @@
+# Build artifacts
+*.img
+*.img.lz4
+*.bin
+*.dtb
+*.dts.tmp
+out/
+boot_unpacked/
+
+# Kernel build files
+*.o
+*.ko
+*.mod.c
+modules.order
+Module.symvers
+
+# Editor & OS files
+.DS_Store
+*~
+*.swp
+*.bak
