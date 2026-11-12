@@ -22,6 +22,7 @@ Extensive technical documentation, firmware reverse engineering, boot image tool
   - [Trial 1: Mainline DTB (`ums512-1h10.dtb`)](#trial-1-mainline-dtb-ums512-1h10dtb---watchdog-reboot-loop)
   - [Trial 2: Stock Vendor DTB (`samsung.dtb`)](#trial-2-stock-vendor-dtb-samsungdtb---abi-collapse--instant-crash)
 - [Why the Project Failed: The Blind Bring-Up Boundary](#why-the-project-failed-the-blind-bring-up-boundary)
+- [The Viable Path: What the Working Repository Got Right](#the-viable-path-what-the-working-repository-got-right)
 - [Repository Structure](#repository-structure)
 - [Status & Conclusion](#status--conclusion)
 
@@ -208,6 +209,38 @@ The project hit a definitive technical dead end due to three insurmountable diag
 1. **No Display Framebuffer:** Neither upstream nor vendor DTBs could initialize the Tab A8's Novatek MIPI-DSI display bridge under mainline Linux.
 2. **No Hardware UART Console:** While `console=ttyS1,115200n8` was configured, accessing `ttyS1` physically requires micro-soldering copper wires to tiny test pads on the Tab A8 motherboard.
 3. **No Interactive Feedback:** Without serial output or on-screen `dmesg`, troubleshooting kernel panics, SDHCI power faults, or initramfs crashes was operating completely in the dark.
+
+---
+
+## The Viable Path: What the Working Repository Got Right
+
+While this repository documents the pure **bare-metal mainline "Hail Mary"** that ran headfirst into hardware silence, the companion repository **[`xengoski/galaxy-tab-a8-linux`](https://github.com/xengoski/galaxy-tab-a8-linux)** approached the problem from the opposite direction and succeeded in turning the Galaxy Tab A8 into a daily-drivable Linux tablet.
+
+### Key Architectural Differences
+
+| Subsystem | Bare-Metal Mainline (This Repo) | Droidian / Halium Port ([`galaxy-tab-a8-linux`](https://github.com/xengoski/galaxy-tab-a8-linux)) |
+| :--- | :--- | :--- |
+| **Kernel Stack** | Upstream Linux 6.x (generic ARM64) | Device-specific Android BSP / Halium 4.14 kernel |
+| **Display & GPU** | **Dead / Black screen** (missing DSI panel DTS bindings) | **60 FPS Hardware-Accelerated** (Wayfire 0.9.0 via native `hwcomposer` & Mali-G52 MP2 GLES 3.2) |
+| **Touch & Input** | Headless / No input handling (expected physical USB keyboard) | **Universal `/dev/uinput` touch keyboard** + kinetic multi-touch gesture daemon (`gta8-input-daemon`) |
+| **Audio Routing** | Silent / Unmanaged Unisoc VBC | **Working internal speakers** routed through Unisoc VBC DAC0 via ALSA/PulseAudio |
+| **Power & Battery** | Kernel watchdog timeout resets after ~3 minutes | **Stable FSA9685 USB-C sink charging lock** (`gta8-usb-debug.sh`) & proper PMIC rails |
+| **Sensors** | Dead / No I2C sensor driver | **Auto-rotation** via `iio-sensor-proxy` + `sensorfwd` SensorHub integration |
+| **Cellular (LTE)** | Dead / Missing baseband modem daemon | **Functional Unisoc LTE baseband** via `ofono2mm` + `modem_control` |
+| **Storage / Boot** | Blocked on reformatting `/data` (ADB root locked out) | **Non-destructive dual-boot** alongside Samsung Android without wiping user data |
+
+### What `galaxy-tab-a8-linux` Solved:
+
+1. **Bypassing the Upstream Mainline Display Dead-End:**
+   Instead of spending months reverse engineering the Novatek MIPI-DSI display bridge and writing a custom kernel panel driver, it utilized the vendor Android `hwcomposer` interface with libhybris. This unlocked 60 FPS compositor rendering directly on the Mali-G52 GPU without touching CPU software rasterization (`llvmpipe`).
+2. **Preserving Low-Level Hardware Drivers:**
+   By keeping the vendor BSP device tree, all the missing hardware that choked mainline (PMIC SC2730, FSA9685 charging lock, VBC audio DAC, SensorHub, touch digitizer) was active and working out of the box.
+3. **Solving the Touch UX Challenge:**
+   A major obstacle in pure Linux tablet ports is the lack of physical input during early setup. The working repo built custom daemons specifically for tablet ergonomics: a system-wide `/dev/uinput` touch keyboard, a sliding quick control center, and multi-touch trackpad gestures (2-finger kinetic scroll, opposing pinch-to-zoom disambiguation, and 3-finger app switching).
+4. **Zero-Risk Dual-Booting:**
+   Rather than risking a permanent brick by trying to repartition eMMC storage through broken `adb root` permissions, it loads via an initramfs bootloader integration, leaving Android untouched.
+
+If you are looking for an **active, hardware-accelerated, daily-drivable desktop experience** on the Tab A8, refer directly to [**`xengoski/galaxy-tab-a8-linux`**](https://github.com/xengoski/galaxy-tab-a8-linux).
 
 ---
 
